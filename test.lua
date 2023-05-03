@@ -1,32 +1,32 @@
-local sre = require("sre")
-
+local hufets = require("hufets")
 local f = string.format
 
+local wrongs = 0
 
 
 local function test(str, should, shouldnt)
-    local parser = assert(sre:match(str), "failed to parse input")
     local wrong = false
 
 	local function throw(case, expected, ...)
 		print(f("%q: failed %q: expected %s, got", str, case, expected), ...)
 		wrong = true
+		wrongs = wrongs + 1
 	end
 
 	for i = 1, #should, 3 do
         local case, exStart, exEnd = should[i], should[i + 1], should[i + 2]
 
-        local acStart, acEnd = parser:match(case)
+        local acStart, acEnd, err = hufets.match(case, str, 1, true)
 
 		if acStart ~= exStart or acEnd ~= exEnd then
-			throw(case, exStart .. " " .. exEnd, acStart, acEnd)
+			throw(case, exStart .. " " .. exEnd, acStart, acEnd, err)
 		end
 	end
 
     for i = 1, #shouldnt do
         local case = shouldnt[i]
 
-        local acStart, acEnd = parser:match(case)
+        local acStart, acEnd = hufets.match(case, str, 1, true)
 
         if acStart then
             throw(case, "none", acStart, acEnd)
@@ -36,27 +36,13 @@ local function test(str, should, shouldnt)
     if not wrong then print("Nothing wrong") end
 end
 
-local function testWrong(strs)
-	local wrong = false
-
-	for _, str in ipairs(strs) do
-		local res = table.pack(sre:match(str))
-		if res[1] ~= nil then
-			print(f("Invalid %q parsed! Got", str), table.unpack(res, 1, res.n))
-			wrong = true
-		end
-	end
-
-    if not wrong then print("Nothing wrong") end
-end
-
 local function testErr(strs)
     local wrong = false
 
     for _, str in ipairs(strs) do
-        local res = table.pack(pcall(sre.match, sre, str))
-        if res[1] == true then
-            print(f("%q did not error! Got", str), table.unpack(res, 2, res.n))
+		local matcher = hufets.compile(str, true)
+        if matcher then
+            print(f("%q did not error! Got %s", str, matcher))
             wrong = true
         end
     end
@@ -71,13 +57,27 @@ print("Starting tests")
 
 test("a", {
 	"a", 1, 2,
+	'"a"', 2, 3,
 	"a b c", 1, 2,
 	"b a c", 3, 4,
-	"b c a", 5, 6
+	"b c a", 5, 6,
 }, {
 	"ab",
 	"ba",
 	"bac",
+})
+test("a..", {
+	"a..", 1, 4,
+}, {
+	"a",
+})
+test(" a ", {
+	" a ", 1, 4,
+	" !a? ", 1, 6,
+}, {
+	"a",
+	"a ",
+	" a",
 })
 test("hello there", {
 	"hello there", 1, 12,
@@ -94,31 +94,33 @@ test("hello there", {
 	"hello theree",
 	"hello no there",
 })
-
--- Esc space
-test("hello% there", {
-	"hello there", 1, 12,
-	"hello there hi", 1, 12,
-	"hi hello there", 4, 15,
-	"well hello there!", 6, 17,
+test("a !b", {
+	"a    !b", 1, 8,
+	"a !  !b", 1, 8,
 }, {
-	"hello  there", -- two spaces
-	"hello	there", -- tab
-	"hellothere",
+	"a!b",
+	"a ! b",
+	"a  b",
 })
 
 
--- Dash tests
-test("a-b", {
+-- Word tests
+test("a_b", {
 	"acb", 1, 4,
 	"aab", 1, 4,
+	"abb", 1, 4,
 	"akugkfusakb", 1, 12,
 	"aakaysfdjb", 1, 11,
 }, {
 	"ab",
-	"abb"
+	"abbb", -- Caveat
 })
-test("ab-", {
+test("a__b", {
+	"acb", 1, 4,
+}, {
+	"abbb",
+})
+test("ab_", {
 	"ee abef ee", 4, 8,
 	"abef", 1, 5,
 }, {
@@ -126,7 +128,7 @@ test("ab-", {
 	"feab",
 	"feabe",
 })
-test("-ab", {
+test("_ab", {
 	"ee efab ee", 4, 8,
 	"feab", 1, 5,
 }, {
@@ -134,7 +136,7 @@ test("-ab", {
 	"abfe",
 	"feabe",
 })
-test("-ab-", {
+test("_ab_", {
 	"ee efabe ee", 4, 9,
 	"feabe", 1, 6,
 }, {
@@ -144,26 +146,11 @@ test("-ab-", {
 	"abfe",
 	"feab"
 })
-test("%-ab", {
-	"-ab", 1, 4,
-	"e -ab e", 3, 6,
+test("a_bc_d_", {
+	"abbccdd", 1, 8,
+	"abbbcbdd", 1, 9,
 }, {
-	"ab",
-	"eab",
-})
-test("a%-b", {
-	"a-b", 1, 4,
-	"e a-b e", 3, 6,
-}, {
-	"ab",
-	"aeb",
-})
-test("ab%-", {
-	"ab-", 1, 4,
-	"e ab- e", 3, 6,
-}, {
-	"ab",
-	"abe",
+	"abbbbdd",
 })
 
 -- Multi tests
@@ -174,23 +161,127 @@ test("a/b/c", {
 	"f a e", 3, 4,
 	"f c e", 3, 4,
 }, {
+	"f",
+	"ab",
 })
-test("a-/b", {
+test("a_/b", {
 	"ae", 1, 3,
 	"b", 1, 2
 }, {
 	"a-"
 })
-test("a%/b", {
-	"a/b", 1, 4,
+test("a///b", {
+	"a", 1, 2,
+	"b", 1, 2,
+}, {
+	"c",
+	""
+})
+test("//a///b/c/", {
+	"a", 1, 2,
+	"b", 1, 2,
+	"c", 1, 2,
+}, {
+	"",
+	"/",
+})
+test("a/", {
+	"a", 1, 2,
+}, {
+	"b"
+})
+test("/a", {
+	"a", 1, 2,
+}, {
+	"b"
+})
+test("/", {
+	"", 1, 1,
+}, {})
+test("//", {
+	"", 1, 1,
+}, {})
+
+-- Literal tests
+test('"hello there"', {
+	"hello there", 1, 12,
+	"aaa hello there bbb", 5, 16,
+	'"hello there"', 2, 13,
+}, {
+	"hello  there",
+	"ahello there",
+	"hello theres",
+})
+test('_" "', {
+	"b ", 1, 3,
+}, {
+	"bb",
+	" b",
+})
+test('"a"_"b"', {
+	"acb", 1, 4,
+	"aab", 1, 4,
+	"abb", 1, 4,
+	"akugkfusakb", 1, 12,
+	"aakaysfdjb", 1, 11,
+}, {
+	"ab",
+})
+test('"a"/b', {
+	"a", 1, 2,
+	"b", 1, 2,
+}, {
+	"c",
+})
+test('"""', {
+	'"', 1, 2
+}, {
+	"",
+})
+test('""', {
+	"", 1, 1
 }, {
 	"a",
-	"b",
 })
 
--- Amp test
-testWrong{"a&b", "a& b", "a &b"}
-test("a & b", {
+
+-- Gap test
+test("a...a", {
+	"aa", 1, 3,
+	"aba", 1, 4,
+	"a    a", 1, 7,
+	"a  b  a", 1, 8,
+}, {
+	"ab",
+	"ae b",
+	"a eb",
+	"aaa", -- Caveat
+})
+test("a... b", {
+	"a b", 1, 4,
+	"ac b", 1, 5,
+	"a   b", 1, 6,
+	"ac   b", 1, 7,
+}, {
+	"ab",
+	"acb",
+})
+test("a ...b", {
+	"a b", 1, 4,
+	"a cb", 1, 5,
+	"a   b", 1, 6,
+	"a   cb", 1, 7,
+}, {
+	"ab",
+	"acb",
+})
+test("a...b", {
+	"ab", 1, 3,
+	"aab", 1, 4,
+}, {
+	"abb",
+})
+test("a ... b", {
 	"a b", 1, 4,
 	"a c b", 1, 6,
 	"a saf fa d f asf gfa s afaf b", 1, 30,
@@ -199,73 +290,134 @@ test("a & b", {
 	"ae b",
 	"a eb",
 })
-test("a/b & -c", {
+test("a/b ... _c", {
 	"a bc", 1, 5,
 	"a ac", 1, 5,
 	"b bc", 1, 5,
-	"b ac", 1, 5,
+	"b eac", 1, 6,
 	"a saf fa d f asf gfa s afaf ec", 1, 31,
 }, {
 	"a c",
 	"b c",
+	"ae bc",
 })
-test("a%& b", {
-	"a& b", 1, 5,
+
+test("a ... b ... c", {
+	"a b c", 1, 6,
+	"  a  e  b   f   c	", 3, 18,
+	"a b c c", 1, 6,
 }, {
-	"a b",
-	"a c b",
-})
-test("a %&b", {
-}, {
-	"a &b" -- caveat
+	"a c",
+	"b c",
+	"ab c",
+	"abc",
 })
 
 -- Test anchors
-testWrong{" |ab", "ba| ", "b|a", " b | a"}
 test("|ab", {
 	"ab", 1, 3,
-	"   ab", 4, 6,
 	"ab ce", 1, 3,
 }, {
+	" ab",
 	"ce ab",
 })
 test("ab|", {
-	"ab", 1, 3,
-	"ce ab    ", 4, 6,
+	"c ab", 3, 5,
 }, {
 	"ab ce",
+	"ce ab ",
 })
-test("|-ab", {
-	"   eab", 4, 7,
+test("|_ab", {
 	"eab ce", 1, 4,
 }, {
 	"ab",
+	" eab",
 	"ce ab",
 })
-test("ab-|", {
+test("ab_|", {
 	"abe", 1, 4,
-	"ce abe    ", 4, 7,
+	"c abe", 3, 6,
 }, {
 	"ab",
+	"abe ",
 	"ab ce",
+})
+test(" |a", {
+	"  |a", 1, 5,
+}, {
+	"a",
+})
+test("a| ", {
+	"a|  ", 1, 5,
+}, {
+	"a",
+})
+test("a|b", {
+	"a|b", 1, 4,
+	"e  a|b   c", 4, 7,
+}, {
+	"a",
+})
+test("|", {
+	"", 1, 1,
+	" ", 1, 1,
+	" a", 1, 1,
+}, {
+	"a",
+	"a ",
+})
+test(" |", {
+	" ", 1, 2,
+	"a  ", 3, 4,
+}, {
+	"a",
+	"  a",
+	"a ",
+})
+test("| ", {
+	" ", 1, 2,
+}, {
+	"a",
+})
+test(" | ", {
+	" | ", 1, 4,
+}, {
+	" ",
+	"   ",
 })
 
 
 -- Test manual
 testErr{"!'ab", "!!'ab"}
-test("!{}'ab'{} !.", {
+test("!'ab' !.", {
 	"ab", 1, 3,
 	"nice ab", 6, 8,
 }, {
 	"ab nice",
+	"cab",
 })
+test("!'a'{}'b' !.", { -- Test capture discarding
+	"ab", 1, 3,
+}, {})
 test("!!{}'ab'{} !.", {
 	"ab", 1, 3,
 }, {
 	"ab nice",
 	"nice ab",
+	" ab",
+})
+
+-- Empty input string
+test("", {
+	"", 1, 1,
+	" ", 1, 1,
+	"a ", 3, 3,
+}, {
+	"a",
 })
 
 
-
-print("Tests done")
+print(f("Tests done: %d failures", wrongs))
+if wrongs > 0 then
+	error("Tests failed", 0)
+end
