@@ -48,9 +48,9 @@ Multiple sequences of alphanumerics and underscores separated by one or more sla
 
 ### Ellipses
 
-An ellipse (a sequence of three periods, `...`, *not* the [Unicode character](https://www.compart.com/en/unicode/U+2026)) matches any sequence of characters and is meant to be used to match . The match is done lazily, but unlike other lazy matches, does not have to match a character at all. For example, `a...b` matches `ab`, `aab` and `ac e fb`, but (because the match is lazy), does not match `abb`.
+An ellipse (a sequence of three periods, `...`, *not* the [Unicode character](https://www.compart.com/en/unicode/U+2026)) matches any sequence of characters. The match is done lazily, but unlike other lazy matches, does not have to match a character at all. For example, `a...b` matches `ab`, `aab` and `ac e fb`, but (because the match is lazy), does not match `abb`.
 
-As a special case, if the ellipse is both preceded and followed by whitespace, the whitespace that follows it does not have to match at least one occurrence and can overlap with the preceding space. This ensures that `a ... b` matches `a b` (but not `a cb` or `ac b`).
+As a special case, if the ellipse is both preceded and followed by whitespace, the whitespace that follows it can overlap with the preceding space. This ensures that `a ... b` matches `a b` (but not `a cb` or `ac b`).
 
 ### Anchors
 
