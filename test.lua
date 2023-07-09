@@ -1,5 +1,5 @@
 local hufets = require("hufets")
-local f = string.format
+local f, rep = string.format, string.rep
 
 local wrongs = 0
 
@@ -48,6 +48,35 @@ local function testErr(strs)
     end
 
     if not wrong then print("Nothing wrong") end
+end
+
+local function timed(patt, case, match)
+	local start = os.clock()
+	local a, b, err = hufets.match(case, patt, 1, true)
+	local time = os.clock() - start
+	local wrong = false
+
+	local pattSample = patt:sub(1, 10)
+	local caseSample = case:sub(1, 10)
+
+	if (match and not (a and b)) or (not match and (a and b)) then
+		print(f(
+			"%s for %s: expected to %s but %s",
+			pattSample, caseSample,
+			match and "match" or "not match",
+			match and "did not" or "did"
+		))
+		wrong = true
+		wrongs = wrongs + 1
+	end
+
+	if time > 0.05 then
+		print(f("%s for %s: took too long! took %.4f s but expected >0.01 s", pattSample, caseSample, time))
+		wrong = true
+		wrongs = wrongs + 1
+	end
+
+	if not wrong then print(f("Nothing wrong: %.4f s", time)) end
 end
 
 
@@ -437,6 +466,9 @@ test("", {
 }, {
 	"a",
 })
+
+timed(rep("_b_c", 1000), rep("rrrrrbbbbbbbbrrrrrbrc", 1000), true)
+timed("_/_/_/_/_/_/_ _/_/_/_/_/_/_ _/_/_/_/_/_/_ _/_/_/_/_/_/_ b", "a a a a a a", false)
 
 
 print(f("Tests done: %d failures", wrongs))
