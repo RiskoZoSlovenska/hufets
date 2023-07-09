@@ -1,6 +1,10 @@
 # HUFETS: **HU**man-**F**riendly **E**xpressions for **T**ext **S**earching
 
-HUFETS is a minimalistic "regex" for searching within written text. It's meant to be forgiving to write and readable even by non-programmers.
+HUFETS is a minimalistic "regex" for searching within written text. It's meant to be:
+* Forgiving to write
+* Easily readable even for non-programmers
+* Safe
+
 
 The basic gist is:
 
@@ -30,6 +34,8 @@ Note that this specification is still a work in progress, and some smaller detai
 
 As mentioned, alphanumerics and most punctuation match themselves. Additionally, the matched string must be flanked by non-alphanumerics on both sides (i.e. `a` matches `a` and `b a c` but not `ab` or `bac`).
 
+Some magic characters, such as `_`s and `...`s, will try to match multiple characters lazily, *but they do not backtrack*. The rationale behind this is that backtracking is not needed for most of HUFETS' use cases and only opens up possibilities for [catastrophic backtracking](https://www.regular-expressions.info/catastrophic.html).
+
 ### Quotes
 
 Any characters between an opening quote (`"`) and a closing quote (also a `"`) are matched literally (without the quotes themselves). Quotes cannot be put into quotes (since they act as closing quotes), meaning that there is no way to escape them. When there is an unbalanced amount of quotes in the pattern, the last quote is matched literally.
@@ -48,7 +54,7 @@ Multiple sequences of alphanumerics and underscores separated by one or more sla
 
 ### Ellipses
 
-An ellipse (a sequence of three periods, `...`, *not* the [Unicode character](https://www.compart.com/en/unicode/U+2026)) matches any sequence of characters. The match is done lazily, but unlike other lazy matches, does not have to match a character at all. For example, `a...b` matches `ab`, `aab` and `ac e fb`, but (because the match is lazy), does not match `abb`.
+An ellipse (a sequence of three periods, `...`, *not* the [Unicode character](https://www.compart.com/en/unicode/U+2026)) matches any sequence of characters. Unlike other matches, this match does not have to match a character at all, but still does not backtrack. For example, `a...b` matches `ab`, `aab` and `ac e fb`, but does not match `abb`.
 
 As a special case, if the ellipse is both preceded and followed by whitespace, the whitespace that follows it can overlap with the preceding space. This ensures that `a ... b` matches `a b` (but not `a cb` or `ac b`).
 

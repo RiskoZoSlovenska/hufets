@@ -151,13 +151,13 @@ test("a_b", {
 	"aakaysfdjb", 1, 11,
 }, {
 	"ab",
-	"abbb", -- Caveat
+	"abbb", -- No backtrack
 })
 test("a__b", {
 	"abbb", 1, 5,
 	"acccb", 1, 6,
 }, {
-	"abbbb", -- Caveat
+	"abbbb", -- No backtrack
 })
 test("ab_", {
 	"ee abef ee", 4, 8,
@@ -294,7 +294,7 @@ test("a...a", {
 	"ab",
 	"ae b",
 	"a eb",
-	"aaa", -- Caveat
+	"aaa", -- No backtrack
 })
 test("a... b", {
 	"a b", 1, 4,
@@ -318,7 +318,7 @@ test("a...b", {
 	"ab", 1, 3,
 	"aab", 1, 4,
 }, {
-	"abb",
+	"abb", -- No backtrack
 })
 test("a ... b", {
 	"a b", 1, 4,
