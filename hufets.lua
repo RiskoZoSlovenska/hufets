@@ -52,7 +52,7 @@ local alnum = locale.alnum
 local space = locale.space
 local any = P(1)
 local none = P(0)
-local eof = -any
+local eof = space^0 * -any
 local nonalnum = any - alnum
 local nonmagic = any - (word + either + arbitrary + space + (anchor * eof))
 
@@ -70,14 +70,14 @@ local followedAnyword = anyword * verbatim / lazyAtLeastN
 local unfollowedAnyword = anyword / 2 / makeBlindGreedy
 
 local choiceGroup = Cf((verbatim + followedAnyword + unfollowedAnyword)^1, andFold)
-local choice = either^0 * Cf(choiceGroup * (either * choiceGroup^-1)^0, orFold) + (either^1 * Cc(none))
+local choice = either^0 * Cf(choiceGroup * (either^1 * choiceGroup)^0, orFold) + (either^1 * Cc(none))
 
 -- Spaces
 local spaces = space^1 * Cc(1) * Cc(nonalnum)
 local followedSpaces = spaces * choice / lazyAtLeastN
-local unfollowedSpaces = spaces / 2 / makeBlindGreedy
+-- local unfollowedSpaces = (spaces - eof - (space^0 * anchor * eof)) / 2 / makeBlindGreedy
 
-local unit = Cf((choice + followedSpaces + unfollowedSpaces)^1, andFold)
+local unit = Cf((choice + followedSpaces --[[+ unfollowedSpaces]])^1, andFold)
 
 -- ...s
 local function prependBackNonalnumMatch(p)
@@ -85,27 +85,28 @@ local function prependBackNonalnumMatch(p)
 end
 
 local gap = arbitrary * Cc(any)
-local doubleSpaceGap = B(space) * arbitrary * (spaces / 0) * Cc(any) * (unit / prependBackNonalnumMatch) / lazy
+local doubleSpaceGap = B(space) * gap * (spaces / 0) * (unit / prependBackNonalnumMatch) / lazy
 local followedGap = gap * unit / lazy
 local unfollowedGap = gap / makeBlindGreedy
+local gapWithPreSpaces = (spaces / 2) * (doubleSpaceGap + followedGap + unfollowedGap) / andFold
 
-local component = Cf((unit + doubleSpaceGap + followedGap + unfollowedGap)^1, andFold)
+local component = Cf((unit + gapWithPreSpaces + doubleSpaceGap + followedGap + unfollowedGap)^1, andFold)
 
 -- Everything else
-local frontImplicit = Cc(-B(alnum))
-local backImplicit  = Cc(-#alnum  )
+local frontImplicit = Cc(space^0 * -B(alnum))
+local backImplicit  = Cc(-#alnum * space^0  )
 
-local endAnchor = ( anchor * eof * Cc(eof) )^-1
+local endAnchor = spaces^0 * anchor * eof * Cc(eof)
 
 local cpos = Cc(Cp())
-local body = Cf(frontImplicit * cpos * component^-1 * cpos * backImplicit * endAnchor, andFold)
+local body = Cf(frontImplicit * cpos * component^-1 * cpos * backImplicit * endAnchor^-1, andFold)
 
 -- Main 
 local function anywhere(patt)
 	return (any - patt)^0 * patt
 end
 
-local simple = ((anchor * body) + (body / anywhere)) * eof
+local simple = space^0 * ((anchor * space^0 * body) + (body / anywhere)) * eof
 
 -- Manual (!s)
 local all = any^1 / re.compile
