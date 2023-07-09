@@ -105,6 +105,15 @@ test("a !b", {
 
 
 -- Word tests
+test("_", {
+	"a", 1, 2,
+	"aaa", 1, 4,
+}, {})
+test("__", {
+	"aa", 1, 3,
+	"aaa", 1, 4,
+	"aaaaa", 1, 6,
+}, {})
 test("a_b", {
 	"acb", 1, 4,
 	"aab", 1, 4,
@@ -116,9 +125,10 @@ test("a_b", {
 	"abbb", -- Caveat
 })
 test("a__b", {
-	"acb", 1, 4,
+	"abbb", 1, 5,
+	"acccb", 1, 6,
 }, {
-	"abbb",
+	"abbbb", -- Caveat
 })
 test("ab_", {
 	"ee abef ee", 4, 8,

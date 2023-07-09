@@ -10,18 +10,31 @@ local Cp, Cc, Cf = lpeg.Cp, lpeg.Cc, lpeg.Cf
 
 
 
+local function repeatPat(pat, n) -- Base borrowed from LPeg's re.lua
+	local out = P(true)
+	while n >= 1 do
+		if n % 2 >= 1 then
+			out = out * pat
+		end
+		pat = pat * pat
+		n = n / 2
+	end
+	return out
+end
+
 local function lazy(pat, endPat)
 	return (pat - endPat)^0 * endPat
 end
 
-local function lazyAtLeastOne(pat, endPat)
-	return pat * lazy(pat, endPat)
+local function lazyAtLeastN(n, pat, endPat)
+	return repeatPat(pat, n) * lazy(pat, endPat)
 end
 
 local function andFold(a, b) return a * b end
 local function orFold(a, b)  return a + b end
 
 local function makeBlindGreedy(p) return p^1 end
+local function lenCapture(str) return #str end
 
 
 local locale = lpeg.locale()
@@ -48,17 +61,17 @@ local normal = nonmagic^1 / P
 local verbatim = literal + normal
 
 -- _s and /s
-local anyword = word^1 * Cc(alnum)
-local followedAnyword = anyword * verbatim / lazyAtLeastOne
-local unfollowedAnyword = anyword / makeBlindGreedy
+local anyword = (word^1 / lenCapture) * Cc(alnum)
+local followedAnyword = anyword * verbatim / lazyAtLeastN
+local unfollowedAnyword = anyword / 2 / makeBlindGreedy
 
 local choiceGroup = Cf((verbatim + followedAnyword + unfollowedAnyword)^1, andFold)
 local choice = either^0 * Cf(choiceGroup * (either * choiceGroup^-1)^0, orFold) + (either^1 * Cc(none))
 
 -- Spaces
-local spaces = space^1 * Cc(nonalnum)
-local followedSpaces = spaces * choice / lazyAtLeastOne
-local unfollowedSpaces = spaces / makeBlindGreedy
+local spaces = space^1 * Cc(1) * Cc(nonalnum)
+local followedSpaces = spaces * choice / lazyAtLeastN
+local unfollowedSpaces = spaces / 2 / makeBlindGreedy
 
 local unit = Cf((choice + followedSpaces + unfollowedSpaces)^1, andFold)
 

@@ -40,7 +40,7 @@ Any sequences of whitespace characters in the pattern matches any sequence of no
 
 ### Underscores
 
-Any sequences of underscores (`_`s) in the pattern matches any sequence of alphanumeric characters. At least one character must be matched and the rest of the characters are matched lazily, so that the pattern `a_b` matches `aab` and `acdb`, but not `ab`. **Note:** Because the pattern uses a lazy match, `a_b` (nor `a__b`, which is the same thing) will *not* match something like `abbb`.
+A sequence of underscores (`_`s) in the pattern matches a sequence of alphanumeric characters. The number of underscores in a row indicates the minimum number of characters to match; `_` will match at least one character and `___` at least three. Additional characters are matched lazily, so that the pattern `a_b` matches `aab`, `acdb` and `abb`, but not `ab`. Note that because underscores don't backtrack, `a_b` will *not* match `abbb`.
 
 ### Slashes
 
