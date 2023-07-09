@@ -5,13 +5,13 @@ local WEAK_META = { __mode = "v" }
 local mainCached = setmetatable({}, WEAK_META)
 local simpleCached = setmetatable({}, WEAK_META)
 
-local P, B, V = lpeg.P, lpeg.B, lpeg.V
+local P, B = lpeg.P, lpeg.B
 local Cp, Cc, Cf = lpeg.Cp, lpeg.Cc, lpeg.Cf
 
 
 
 local function lazy(pat, endPat)
-	return P{ endPat + (pat * V(1)) }
+	return (pat - endPat)^0 * endPat
 end
 
 local function lazyAtLeastOne(pat, endPat)
