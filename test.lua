@@ -242,14 +242,28 @@ test("//", {
 }, {})
 
 -- Literal tests
-test('"hello there"', {
-	"hello there", 1, 12,
-	"aaa hello there bbb", 5, 16,
-	'"hello there"', 2, 13,
+test("'", {
+	"\"", 1, 2,
+	"'", 1, 2,
 }, {
+	"",
+	"a",
+})
+test('"hello ther_"', {
+	"hello ther_", 1, 12,
+	"aaa hello ther_ bbb", 5, 16,
+	'"hello ther_"', 2, 13,
+}, {
+	"hello thera",
 	"hello  there",
 	"ahello there",
 	"hello theres",
+})
+test("yes 'hi there' nice", {
+	"yes 'hi there' nice", 1, 20,
+	"yes \"hi there\" nice", 1, 20,
+}, {
+	"yes hi there nice"
 })
 test('_" "', {
 	"b ", 1, 3,

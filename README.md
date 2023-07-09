@@ -38,7 +38,9 @@ Some magic characters, such as `_`s and `...`s, will try to match multiple chara
 
 ### Quotes
 
-Any characters between an opening quote (`"`) and a closing quote (also a `"`) are matched literally (without the quotes themselves). Quotes cannot be put into quotes (since they act as closing quotes), meaning that there is no way to escape them. When there is an unbalanced amount of quotes in the pattern, the last quote is matched literally.
+With the exception of the single quote (see below), any characters between an opening quote (`"`) and a closing quote (also a `"`) are matched literally (without the quotes themselves). Quotes cannot be escaped inside quotes; use a single quote. When there is an unbalanced amount of quotes in the pattern, the last quote is matched literally.
+
+Single quotes (`'`s) are sort of an exception to everything; they will match either a single quote or a double quote.
 
 ### Spaces
 

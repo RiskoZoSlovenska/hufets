@@ -5,7 +5,7 @@ local WEAK_META = { __mode = "v" }
 local mainCached = setmetatable({}, WEAK_META)
 local simpleCached = setmetatable({}, WEAK_META)
 
-local P, B = lpeg.P, lpeg.B
+local P, S, B = lpeg.P, lpeg.S, lpeg.B
 local Cp, Cc, Cf = lpeg.Cp, lpeg.Cc, lpeg.Cf
 
 
@@ -42,6 +42,7 @@ local locale = lpeg.locale()
 local anchor = P"|"
 local literalStart = P"\""
 local literalEnd = P"\""
+local quote = P"'"
 local word = P"_"
 local arbitrary = P"..."
 local either = P"/"
@@ -56,9 +57,12 @@ local nonalnum = any - alnum
 local nonmagic = any - (word + either + arbitrary + space + (anchor * eof))
 
 -- Literal stuff
-local literal = literalStart * ((any - literalEnd)^0 / P) * literalEnd
-local normal = nonmagic^1 / P
-local verbatim = literal + normal
+local single = quote * Cc(S"\"'")
+local function matchSingleOrPatt(patt) return single + (patt - single)^1 / P end
+
+local literal = literalStart * Cf(Cc(true) * matchSingleOrPatt(any - literalEnd)^0, andFold) * literalEnd
+local text = Cf(matchSingleOrPatt(nonmagic)^1, andFold)
+local verbatim = literal + text
 
 -- _s and /s
 local anyword = (word^1 / lenCapture) * Cc(alnum)
