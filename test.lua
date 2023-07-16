@@ -51,13 +51,24 @@ local function testErr(strs)
 end
 
 local function timed(patt, case, match)
-	local start = os.clock()
-	local a, b, err = hufets.match(case, patt, 1, true)
-	local time = os.clock() - start
-	local wrong = false
-
 	local pattSample = patt:sub(1, 10)
 	local caseSample = case:sub(1, 10)
+	local wrong = false
+
+	local start = os.clock()
+	local compiled, err = hufets.compile(patt, true)
+	local compileTime = os.clock() - start
+
+	if not compiled then
+		print(f("%s: invalid pattern: %s", pattSample, err))
+		wrong = true
+		wrongs = wrongs + 1
+		return
+	end
+
+	start = os.clock()
+	local a, b = compiled:match(case)
+	local matchTime = os.clock() - start
 
 	if (match and not (a and b)) or (not match and (a and b)) then
 		print(f(
@@ -70,13 +81,19 @@ local function timed(patt, case, match)
 		wrongs = wrongs + 1
 	end
 
-	if time > 0.05 then
-		print(f("%s for %s: took too long! took %.4f s but expected >0.01 s", pattSample, caseSample, time))
+	if compileTime > 0.1 then
+		print(f("compiling %s took too long! took %.4f s but expected >0.1 s", pattSample, compileTime))
 		wrong = true
 		wrongs = wrongs + 1
 	end
 
-	if not wrong then print(f("Nothing wrong: %.4f s", time)) end
+	if matchTime > 0.05 then
+		print(f("%s for %s: took too long! took %.4f s but expected >0.05 s", pattSample, caseSample, matchTime))
+		wrong = true
+		wrongs = wrongs + 1
+	end
+
+	if not wrong then print(f("Nothing wrong: %.4f + %.4f", compileTime, matchTime)) end
 end
 
 
@@ -480,6 +497,7 @@ test("", {
 }, {
 	"a",
 })
+
 
 timed(rep("_b_c", 1000), rep("rrrrrbbbbbbbbrrrrrbrc", 1000), true)
 timed("_/_/_/_/_/_/_ _/_/_/_/_/_/_ _/_/_/_/_/_/_ _/_/_/_/_/_/_ b", "a a a a a a", false)
