@@ -36,15 +36,21 @@ As mentioned, alphanumerics and most punctuation match themselves. Additionally,
 
 Some magic characters, such as `_`s and `...`s, will try to match multiple characters lazily, *but they do not backtrack*. The rationale behind this is that backtracking is not needed for most of HUFETS' use cases and only opens up possibilities for [catastrophic backtracking](https://www.regular-expressions.info/catastrophic.html).
 
+A pattern that is empty, or contains only whitespace and magic characters (` `, `|`, `/`, etc.), only matches an empty string.
+
+HUFETS ignores leading or trailing whitespace in patterns.
+
 ### Quotes
 
 With the exception of the single quote (see below), any characters between an opening quote (`"`) and a closing quote (also a `"`) are matched literally (without the quotes themselves). Quotes cannot be escaped inside quotes; use a single quote. When there is an unbalanced amount of quotes in the pattern, the last quote is matched literally.
 
-Single quotes (`'`s) are sort of an exception to everything; they will match either a single quote or a double quote.
+Single quotes (`'`s) are sort of an exception to everything; they will *always* match either a single quote or a double quote.
 
 ### Spaces
 
-Any sequences of whitespace characters in the pattern matches any sequence of non-alphanumeric characters. At least one character must be matched and the rest of the characters are matched lazily, so that the pattern `a !b` matches `a !b` and `a ! !b`, but not `a ! b`, `a!b` or `a  b`. Flanking spaces in the pattern signify that the string must also be flanked by whitespace.
+Any sequences of whitespace characters in the pattern matches any sequence of non-alphanumeric characters. At least one character must be matched and the rest of the characters are matched lazily, so that the pattern `a !b` matches `a !b` and `a ! !b`, but not `a ! b`, `a!b` or `a  b`.
+
+Leading/trailing spaces in the pattern are ignored. Additionally, spaces behave differently when next to an [ellipse](#ellipses).
 
 ### Underscores
 
@@ -52,17 +58,17 @@ A sequence of underscores (`_`s) in the pattern matches a sequence of alphanumer
 
 ### Slashes
 
-Multiple sequences of alphanumerics and underscores separated by one or more slashes (`/`s) match one of the sequences (i.e. `a/b_` will try to match both `a` and `b_`). Any leading, trailing, or duplicate slashes are ignored: `//a///b/` is equal to `a/b`, and `///` (or any number of repeated slashes) is equal to `""` (a literal match for the empty string).
+Multiple sequences of alphanumerics and underscores separated by one or more slashes (`/`s) match one of the sequences (i.e. `a/b_` will try to match both `a` and `b_`). Any leading, trailing, or duplicate slashes are ignored: `//a///b/` is equal to `a/b`, and `a /// b` is equal to `a b`.
 
 ### Ellipses
 
-An ellipse (a sequence of three periods, `...`, *not* the [Unicode character](https://www.compart.com/en/unicode/U+2026)) matches any sequence of characters. Unlike other matches, this match does not have to match a character at all, but still does not backtrack. For example, `a...b` matches `ab`, `aab` and `ac e fb`, but does not match `abb`.
+An ellipse (a sequence of three or more periods, `...`, *not* the [Unicode character](https://www.compart.com/en/unicode/U+2026)) is similar to an underscore; it matches one or more characters and still does not backtrack. Unlike the underscore, however, an ellipse can match nonalphanumerics. Additionally, any spaces around an ellipse lose their typical meaning: if the ellipse is lead or followed by a space, that side of the match must also match a word boundary. For example, `a...b` matches `aab` and `ac e fb`, but does not match `a b` or `ac b`; `a ...b` matches `a cb`, `a c fb`, but not `acb`.
 
-As a special case, if the ellipse is both preceded and followed by whitespace, the whitespace that follows it can overlap with the preceding space. This ensures that `a ... b` matches `a b` (but not `a cb` or `ac b`).
+Multiple ellipses separated by nothing but whitespace are parsed as a single ellipse. In other words, `a... ... b` is equivalent to `a... b`.
 
 ### Anchors
 
-Anchoring is done using the pipe character (`|`) at the beginning or the end of the pattern. For example, `|a` matches `a b` but not `b a`. When found anywhere else in the pattern, the pipe is interpreted literally. Edge cases in which the pattern consists of only the pipe, or only the pipe and whitespace may result in the pattern matching empty strings/whitespace sequences (albeit ones that still have to follow the implicit no-alphanumerics-on-sides rule) at the beginning or end of the string. For example, ` |` will match and `a  `, but not the empty string or `a` (whitespace must be matched), `  a` (whitespace must be at the end), or `a ` (matched whitespace must not be flanked by alphanumerics).
+Anchoring is done using the pipe character (`|`) at the beginning or the end of the pattern. When a pattern is anchored, it can only matched if there are no *alphanumeric* characters between the the side of the pattern and the side of the string on which it was anchored. For example, `|a` matches `a b` and `*a*`, but not `b a`. An anchor can have whitespace on either side: ` |  a` is equivalent to `|a`. When found anywhere else in the pattern, the pipe is interpreted literally. Pipes are always interpreted as anchors where it is possible; `||` is two anchors, not an anchor followed by a pipe.
 
 ### Manual
 
@@ -72,6 +78,18 @@ If the pattern begins with two exclamation marks, the rest of the pattern is pas
 
 Exclamation marks anywhere else in the pattern are interpreted literally.
 
+Unlike the rest of HUFETS, this manual pattern must be explicitly enabled (see below) as it allows users to easily craft malicious patterns.
+
+# Bad Form
+
+HUFETS uses a very loose format which tries its best to behave reasonably when presented with weird patterns. However, the handling of "malformed" input might be implementation- and version-dependent in come cases, so for consistent results, avoid the following in patterns:
+* Leading/trailing/duplicate unquoted slashes, i.e. `a//b`
+* Leading/trailing whitespace (it can and should be trimmed)
+* Empty patterns or patterns containing only magic characters
+* Whitespace after/before anchors
+* Ellipses containing more than 3 periods
+* Duplicate ellipses separated by only whitespace, i.e. `a... ... ...b`
+* Empty quotes
 
 ## Docs
 
@@ -90,5 +108,5 @@ This function is mostly equal to `compile(pattern, allowManual):match(str, start
 
 Run tests:
 ```
-lua test.lua
+luarocks make && lua test.lua
 ```

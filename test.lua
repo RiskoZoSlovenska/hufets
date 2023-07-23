@@ -4,7 +4,21 @@ local f, rep = string.format, string.rep
 local wrongs = 0
 
 
+--[[
+	str: string OR table of strings as patterns to test
+	should: list of triples (text, start, stop) giving a search text and the
+	        expected parse output
+	shouldnt: list of texts which the pattern shouldn't match
+]]
 local function test(str, should, shouldnt)
+	if type(str) == "table" then
+		for _, patt in ipairs(str) do
+			test(patt, should, shouldnt)
+		end
+
+		return
+	end
+
     local wrong = false
 
 	local function throw(case, expected, ...)
@@ -36,6 +50,9 @@ local function test(str, should, shouldnt)
     if not wrong then print("Nothing wrong") end
 end
 
+--[[
+	strs: list of patterns which should fail to compile
+]]
 local function testErr(strs)
     local wrong = false
 
@@ -50,6 +67,11 @@ local function testErr(strs)
     if not wrong then print("Nothing wrong") end
 end
 
+--[[
+	patt: Pattern to compile
+	case: Case text to match
+	match: Boolean for whether the pattern should match or not
+]]
 local function timed(patt, case, match)
 	local pattSample = patt:sub(1, 10)
 	local caseSample = case:sub(1, 10)
@@ -104,6 +126,7 @@ print("Starting tests")
 test("a", {
 	"a", 1, 2,
 	'"a"', 2, 3,
+	"   a   ", 4, 5,
 	"a b c", 1, 2,
 	"b a c", 3, 4,
 	"b c a", 5, 6,
@@ -118,12 +141,13 @@ test("a..", {
 	"a",
 })
 test(" a ", {
-	" a ", 1, 4,
-	" !a? ", 1, 6,
+	" a ", 2, 3,
+	" !a? ", 3, 4,
+	"a", 1, 2,
+	"a ", 1, 2,
+	" a", 2, 3,
 }, {
-	"a",
-	"a ",
-	" a",
+	" "
 })
 test("hello there", {
 	"hello there", 1, 12,
@@ -251,12 +275,14 @@ test("/a", {
 }, {
 	"b"
 })
-test("/", {
-	"", 1, 1,
-}, {})
-test("//", {
-	"", 1, 1,
-}, {})
+test({"a/// b", "a ///b", "a /// b"}, {
+	"a b", 1, 4,
+	"a/b", 1, 4,
+}, {
+	"a",
+	"b",
+	"",
+})
 
 -- Literal tests
 test("'", {
@@ -281,6 +307,11 @@ test("yes 'hi there' nice", {
 	"yes \"hi there\" nice", 1, 20,
 }, {
 	"yes hi there nice"
+})
+test("a\"b\"c", {
+	"abc", 1, 4,
+}, {
+	"a\"b\"c",
 })
 test('_" "', {
 	"b ", 1, 3,
@@ -316,18 +347,16 @@ test('""', {
 
 
 -- Gap test
-test("a...a", {
-	"aa", 1, 3,
-	"aba", 1, 4,
-	"a    a", 1, 7,
-	"a  b  a", 1, 8,
+test({"a...b", "a.....b", "a... ...b", "a... ... ...b"}, {
+	"aab", 1, 4,
+	"abb", 1, 4,
+	"a    b", 1, 7,
+	"a  c  b", 1, 8,
 }, {
-	"ab",
-	"ae b",
-	"a eb",
-	"aaa", -- No backtrack
+	"aa",
+	"abbb", -- No backtrack
 })
-test("a... b", {
+test({"a... b", "a... ... b"}, {
 	"a b", 1, 4,
 	"ac b", 1, 5,
 	"a   b", 1, 6,
@@ -336,7 +365,7 @@ test("a... b", {
 	"ab",
 	"acb",
 })
-test("a ...b", {
+test({"a ...b", "a ... ...b"}, {
 	"a b", 1, 4,
 	"a cb", 1, 5,
 	"a   b", 1, 6,
@@ -345,13 +374,7 @@ test("a ...b", {
 	"ab",
 	"acb",
 })
-test("a...b", {
-	"ab", 1, 3,
-	"aab", 1, 4,
-}, {
-	"abb", -- No backtrack
-})
-test("a ... b", {
+test({"a ... b", "a ... ... b"}, {
 	"a b", 1, 4,
 	"a c b", 1, 6,
 	"a saf fa d f asf gfa s afaf b", 1, 30,
@@ -359,6 +382,39 @@ test("a ... b", {
 	"ab",
 	"ae b",
 	"a eb",
+})
+test({"...ab", ".../ab", ".......ab", "... ...ab"}, {
+	" ab", 1, 4,
+	"cab", 1, 4,
+	"idk cab", 1, 8,
+}, {
+	"ab",
+})
+test({"... ab", "... ... ab"}, {
+	" ab", 1, 4,
+	"c ab", 1, 5,
+}, {
+	"ab",
+	"cab",
+})
+test({"ab...", "ab........", "ab... ..."}, {
+	"abc", 1, 4,
+	"abc e", 1, 6,
+}, {
+	"ab",
+})
+test({"ab ...", "ab ........", "ab ... ..."}, {
+	"ab ", 1, 4,
+	"ab  e", 1, 6,
+}, {
+	"ab",
+	"abc",
+})
+test("...", {
+	"a", 1, 2,
+	" ", 1, 2,
+}, {
+	"",
 })
 test("a/b ... _c", {
 	"a bc", 1, 5,
@@ -371,7 +427,6 @@ test("a/b ... _c", {
 	"b c",
 	"ae bc",
 })
-
 test("a ... b ... c", {
 	"a b c", 1, 6,
 	"  a  e  b   f   c	", 3, 18,
@@ -384,88 +439,46 @@ test("a ... b ... c", {
 })
 
 -- Test anchors
-test("|ab", {
+test({"|ab", "| ab", " | ab"}, {
 	"ab", 1, 3,
+	" ab", 2, 4,
+	"|ab", 2, 4,
 	"ab ce", 1, 3,
 }, {
-	" ab",
 	"ce ab",
 })
-test("ab|", {
+test({"ab|", "ab |", "ab | "}, {
 	"c ab", 3, 5,
+	"ce ab ", 4, 6,
+	"ab ", 1, 3,
+	"ab|", 1, 3,
 }, {
 	"ab ce",
-	"ce ab ",
-})
-test("a |", {
-	"a ", 1, 3,
-}, {
-	"a",
-	"",
-})
-test("| a", {
-	" a", 1, 3,
-}, {
-	"a",
-	"",
 })
 test("|_ab", {
 	"eab ce", 1, 4,
+	" eab", 2, 5,
+	"|eab", 2, 5,
 }, {
 	"ab",
-	" eab",
 	"ce ab",
 })
 test("ab_|", {
 	"abe", 1, 4,
+	"abe ", 1, 4,
+	"abe|", 1, 4,
 	"c abe", 3, 6,
 }, {
 	"ab",
-	"abe ",
 	"ab ce",
-})
-test(" |a", {
-	"  |a", 1, 5,
-}, {
-	"a",
-})
-test("a| ", {
-	"a|  ", 1, 5,
-}, {
-	"a",
 })
 test("a|b", {
 	"a|b", 1, 4,
 	"e  a|b   c", 4, 7,
 }, {
 	"a",
-})
-test("|", {
-	"", 1, 1,
-	" ", 1, 1,
-	" a", 1, 1,
-}, {
-	"a",
-	"a ",
-})
-test(" |", {
-	" ", 1, 2,
-	"a  ", 3, 4,
-}, {
-	"a",
-	"  a",
-	"a ",
-})
-test("| ", {
-	" ", 1, 2,
-}, {
-	"a",
-})
-test(" | ", {
-	" | ", 1, 4,
-}, {
-	" ",
-	"   ",
+	"b",
+	"a b",
 })
 
 
@@ -481,7 +494,7 @@ test("!'ab' !.", {
 test("!'a'{}'b' !.", { -- Test capture discarding
 	"ab", 1, 3,
 }, {})
-test("!!{}'ab'{} !.", {
+test(" !!{}'ab'{} !.", {
 	"ab", 1, 3,
 }, {
 	"ab nice",
@@ -489,11 +502,12 @@ test("!!{}'ab'{} !.", {
 	" ab",
 })
 
--- Empty input string
-test("", {
+
+-- Empty input
+test({"", "  ", "\t", "/", "////", "|", "||", "| |", "  |  ", " |  | ", "  |", "|  "}, {
 	"", 1, 1,
 	" ", 1, 1,
-	"a ", 3, 3,
+	"|", 1, 1,
 }, {
 	"a",
 })

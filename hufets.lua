@@ -30,6 +30,10 @@ local function lazyAtLeastN(n, pat, endPat)
 	return repeatPat(pat, n) * lazy(pat, endPat)
 end
 
+local function lazyAtLeastOne(pat, endPat)
+	return lazyAtLeastN(1, pat, endPat)
+end
+
 local function andFold(a, b) return a * b end
 local function orFold(a, b)  return a + b end
 
@@ -44,24 +48,30 @@ local literalStart = P"\""
 local literalEnd = P"\""
 local quote = P"'"
 local word = P"_"
-local arbitrary = P"..."
+local arbitrary = P"."^3
 local either = P"/"
 local manualMark = P"!"
 
 local alnum = locale.alnum
 local space = locale.space
+local optspace = space^0
+local always = P(true)
 local any = P(1)
-local none = P(0)
-local eof = -any
+local eof = optspace * -any
 local nonalnum = any - alnum
-local nonmagic = any - (word + either + arbitrary + space + (anchor * eof))
+local nonmagic = any - (word + either + arbitrary + (optspace * anchor * eof) + space)
+
+local noAlnumBefore = Cc(-B(alnum))
+local noAlnumAfter  = Cc(-#alnum  )
 
 -- Literal stuff
 local single = quote * Cc(S"\"'")
-local function matchSingleOrPatt(patt) return single + (patt - single)^1 / P end
+local function matchSingleOrPatt(patt)
+	return single + (patt - single)^1 / P
+end
 
-local literal = literalStart * Cf(Cc(true) * matchSingleOrPatt(any - literalEnd)^0, andFold) * literalEnd
-local text = Cf(matchSingleOrPatt(nonmagic)^1, andFold)
+local literal = literalStart * Cf(Cc(always) * matchSingleOrPatt(any - literalEnd)^0, andFold) * literalEnd
+local text = Cf(matchSingleOrPatt(nonmagic - literal)^1, andFold)
 local verbatim = literal + text
 
 -- _s and /s
@@ -70,49 +80,41 @@ local followedAnyword = anyword * verbatim / lazyAtLeastN
 local unfollowedAnyword = anyword / 2 / makeBlindGreedy
 
 local choiceGroup = Cf((verbatim + followedAnyword + unfollowedAnyword)^1, andFold)
-local choice = either^0 * Cf(choiceGroup * (either * choiceGroup^-1)^0, orFold) + (either^1 * Cc(none))
+local justEither = either^1 * optspace * Cc(always)
+local choice = either^0 * Cf(choiceGroup * (either^1 * choiceGroup)^0, orFold) * either^0 + justEither
 
 -- Spaces
-local spaces = space^1 * Cc(1) * Cc(nonalnum)
-local followedSpaces = spaces * choice / lazyAtLeastN
-local unfollowedSpaces = spaces / 2 / makeBlindGreedy
-
-local unit = Cf((choice + followedSpaces + unfollowedSpaces)^1, andFold)
+local spaces = space^1 * Cc(nonalnum)
+local followedSpaces = spaces * choice / lazyAtLeastOne
+local unit = Cf((choice + followedSpaces)^1, andFold)
 
 -- ...s
-local function prependBackNonalnumMatch(p)
-	return B(nonalnum) * p
+local gapPreSpace  = space^1 * noAlnumAfter  + Cc(always)
+local gapPostSpace = space^1 * noAlnumBefore + Cc(always)
+local gap = gapPreSpace * arbitrary * (space^1 * arbitrary)^0 * gapPostSpace
+
+local function makeGap(pre, post, func, target)
+	return pre * func(any, target and (post * target) or nil)
 end
 
-local gap = arbitrary * Cc(any)
-local doubleSpaceGap = B(space) * arbitrary * (spaces / 0) * Cc(any) * (unit / prependBackNonalnumMatch) / lazy
-local followedGap = gap * unit / lazy
-local unfollowedGap = gap / makeBlindGreedy
+local followedGap   = gap * Cc(lazyAtLeastOne)  * unit / makeGap
+local unfollowedGap = gap * Cc(makeBlindGreedy)        / makeGap
+local component = Cf((followedGap + unfollowedGap + unit)^1, andFold)
 
-local component = Cf((unit + doubleSpaceGap + followedGap + unfollowedGap)^1, andFold)
-
--- Everything else
-local frontImplicit = Cc(-B(alnum))
-local backImplicit  = Cc(-#alnum  )
-
-local endAnchor = ( anchor * eof * Cc(eof) )^-1
+-- Anchors
+local optFrontAnchor = (anchor * optspace * Cc(nonalnum)) + Cc(any)
+local optEndAnchor = (optspace * anchor * eof * Cc(nonalnum^0 * eof))^-1
 
 local cpos = Cc(Cp())
-local body = Cf(frontImplicit * cpos * component^-1 * cpos * backImplicit * endAnchor, andFold)
-
--- Main 
-local function anywhere(patt)
-	return (any - patt)^0 * patt
-end
-
-local simple = ((anchor * body) + (body / anywhere)) * eof
+local body = Cf(noAlnumBefore * cpos * component^-1 * cpos * noAlnumAfter * optEndAnchor, andFold)
+local simple = optspace * (optFrontAnchor * body / lazy) * eof
 
 -- Manual (!s)
 local all = any^1 / re.compile
 local allNoCaptures = all / function(p) return p / 0 end
 local fullyManual = manualMark * manualMark * all
-local assistedManual = manualMark * Cf(frontImplicit * cpos * allNoCaptures * cpos * backImplicit, andFold) / anywhere
-local manual = (fullyManual + assistedManual) * eof
+local assistedManual = manualMark * Cc(any) * Cf(noAlnumBefore * cpos * allNoCaptures * cpos * noAlnumAfter, andFold) / lazy
+local manual = optspace * (fullyManual + assistedManual) * eof
 
 local main = manual + simple
 
