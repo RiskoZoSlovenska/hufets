@@ -1,9 +1,11 @@
 # HUFETS: **HU**man-**F**riendly **E**xpressions for **T**ext **S**earching
 
+***Note:** I've decided to discontinue this project until further notice. I'm not entirely sure what I was thinking when I wrote it, but it's a bit of a mess that doesn't do a good job at what I actually needed it to do.*
+
 HUFETS is a minimalistic "regex" for searching within written text. It's meant to be:
 * Forgiving to write
 * Easily readable even for non-programmers
-* Safe
+* Safe (possibly; use at your own risk)
 
 
 The basic gist is:
@@ -18,7 +20,7 @@ The basic gist is:
 
 ## Installation
 
-HUFETS is still unstable and the syntax may be subject to change. While I plan on publishing it to [LuaRocks](https://luarocks.org/) when it's stable, for now, install it by building manually:
+HUFETS is still unstable and the syntax may be subject to change. Install it by building manually:
 ```
 git clone https://github.com/RiskoZoSlovenska/hufets
 cd hufets
