@@ -48,6 +48,7 @@ local literalStart = P"\""
 local literalEnd = P"\""
 local quote = P"'"
 local word = P"_"
+local dash = "-"
 local arbitrary = P"."^3
 local either = P"/"
 local manualMark = P"!"
@@ -59,10 +60,10 @@ local always = P(true)
 local any = P(1)
 local eof = optspace * -any
 local nonalnum = any - alnum
-local nonmagic = any - (word + either + arbitrary + (optspace * anchor * eof) + space)
+local nonmagic = any - (word + either + arbitrary + (optspace * (anchor + dash) * eof) + space)
 
-local noAlnumBefore = Cc(-B(alnum))
-local noAlnumAfter  = Cc(-#alnum  )
+local noAlnumBefore = -B(alnum)
+local noAlnumAfter  = -#alnum  
 
 -- Literal stuff
 local single = quote * Cc(S"\"'")
@@ -89,8 +90,8 @@ local followedSpaces = spaces * choice / lazyAtLeastOne
 local unit = Cf((choice + followedSpaces)^1, andFold)
 
 -- ...s
-local gapPreSpace  = space^1 * noAlnumAfter  + Cc(always)
-local gapPostSpace = space^1 * noAlnumBefore + Cc(always)
+local gapPreSpace  = space^1 * Cc(noAlnumAfter)  + Cc(always)
+local gapPostSpace = space^1 * Cc(noAlnumBefore) + Cc(always)
 local gap = gapPreSpace * arbitrary * (space^1 * arbitrary)^0 * gapPostSpace
 
 local function makeGap(pre, post, func, target)
@@ -102,18 +103,29 @@ local unfollowedGap = gap * Cc(makeBlindGreedy)        / makeGap
 local component = Cf((followedGap + unfollowedGap + unit)^1, andFold)
 
 -- Anchors
-local optFrontAnchor = (anchor * optspace * Cc(nonalnum)) + Cc(any)
-local optEndAnchor = (optspace * anchor * eof * Cc(nonalnum^0 * eof))^-1
+local anchorFront = anchor * optspace * Cc(nonalnum) * Cc(noAlnumBefore)
+local dashFront = dash * -#space * Cc(any) * Cc(P(true))
+local noFront = Cc(any) * Cc(noAlnumBefore)
+local front = anchorFront + dashFront + noFront
+
+local anchorBack = optspace * anchor * eof * Cc(noAlnumAfter * nonalnum^0 * eof)
+local dashBack = -B(space) * dash * eof * Cc(P(true))
+local noBack = Cc(noAlnumAfter)
+local back = anchorBack + dashBack + noBack
 
 local cpos = Cc(Cp())
-local body = Cf(noAlnumBefore * cpos * component^-1 * cpos * noAlnumAfter * optEndAnchor, andFold)
-local simple = optspace * (optFrontAnchor * body / lazy) * eof
+
+local bodyWithoutFront = Cf(cpos * component^-1 * cpos * back, andFold)
+local simple = optspace * (front * bodyWithoutFront / function(preBody, boundary, body)
+	return lazy(preBody, boundary * body)
+end) * eof
+
 
 -- Manual (!s)
 local all = any^1 / re.compile
 local allNoCaptures = all / function(p) return p / 0 end
 local fullyManual = manualMark * manualMark * all
-local assistedManual = manualMark * Cc(any) * Cf(noAlnumBefore * cpos * allNoCaptures * cpos * noAlnumAfter, andFold) / lazy
+local assistedManual = manualMark * Cc(any) * Cf(Cc(noAlnumBefore) * cpos * allNoCaptures * cpos * Cc(noAlnumAfter), andFold) / lazy
 local manual = optspace * (fullyManual + assistedManual) * eof
 
 local main = manual + simple
