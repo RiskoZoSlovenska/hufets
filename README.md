@@ -30,15 +30,11 @@ luarocks make
 
 Note that this specification is still a work in progress, and some smaller details, such as handling of edge cases, may change.
 
-### General
+### Basics
 
-As mentioned, alphanumerics and most punctuation match themselves. Additionally, the matched string must be flanked by non-alphanumerics on both sides (i.e. `a` matches `a` and `b a c` but not `ab` or `bac`).
+Alphanumerics and most punctuation match themselves; `world!` would match in `hello world!`, for example. Spaces, however, can match any number of spaces or *non-alphanumerics*, meaning that `hello world` would not only match `hello world!`, but also `hello ! world`. All patterns are implicitly flanked by spaces: the matched string must be flanked by non-alphanumerics on both sides (i.e. `world` does not match in `hello worlds`).
 
-Some magic characters, such as `_`s and `...`s, will try to match multiple characters lazily, *but they do not backtrack*. The rationale behind this is that backtracking is not needed for most of HUFETS' use cases and only opens up possibilities for [catastrophic backtracking](https://www.regular-expressions.info/catastrophic.html).
-
-A pattern that is empty, or contains only whitespace and magic characters (` `, `|`, `/`, etc.), only matches an empty string.
-
-HUFETS ignores leading or trailing whitespace in patterns.
+Note that some magic characters, such as `_`s and `...`s, will try to match multiple characters lazily, *but they do not backtrack*. The rationale behind this is that backtracking is not needed for most of HUFETS' use cases and only opens up possibilities for [catastrophic backtracking](https://www.regular-expressions.info/catastrophic.html).
 
 ### Quotes
 
@@ -80,9 +76,13 @@ Exclamation marks anywhere else in the pattern are interpreted literally.
 
 Unlike the rest of HUFETS, this manual pattern must be explicitly enabled (see below) as it allows users to easily craft malicious patterns.
 
-# Bad Form
+## "Malformed" patterns
 
-HUFETS uses a very loose format which tries its best to behave reasonably when presented with weird patterns. However, the handling of "malformed" input might be implementation- and version-dependent in come cases, so for consistent results, avoid the following in patterns:
+HUFETS will never give up or throw an error when parsing a pattern or matching a string, even when presented with what looks like a malformed pattern. In cases like these, HUFETS will try its best to behave predictably. For example:
+* A pattern that is empty, or contains only whitespace and magic characters (` `, `|`, `/`, etc.), only matches an empty string.
+* Leading or trailing whitespace in patterns is ignored
+
+However, the exact handling of "malformed" input might be implementation- and version-dependent in come cases, so for consistent results, avoid the following in patterns:
 * Leading/trailing/duplicate unquoted slashes, i.e. `a//b`
 * Leading/trailing whitespace (it can and should be trimmed)
 * Empty patterns or patterns containing only magic characters
